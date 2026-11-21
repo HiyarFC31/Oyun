@@ -1,0 +1,11 @@
+{
+  "appId": "com.theftatsolaris.game3d",
+  "appName": "Theft at Solaris",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#120d1d"
+  }
+}

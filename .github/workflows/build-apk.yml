@@ -1,0 +1,85 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      ws_url:
+        description: 'Opsiyonel Online Sunucu WebSocket Adresi (örn. wss://sunucu-adresi.run.app/ws)'
+        required: false
+        default: ''
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies & build web app
+        env:
+          VITE_WS_URL: ${{ github.event.inputs.ws_url || vars.VITE_WS_URL || '' }}
+        run: |
+          npm install
+          npm run build
+
+      - name: Initialize Capacitor Android project
+        run: |
+          npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          npx cap add android
+          if [ -f public/pwa-512x512.png ] && [ -f public/pwa-192x192.png ]; then
+            rm -rf android/app/src/main/res/mipmap-anydpi-v26
+            for dir in mdpi hdpi xhdpi; do
+              mkdir -p "android/app/src/main/res/mipmap-$dir"
+              cp public/pwa-192x192.png "android/app/src/main/res/mipmap-$dir/ic_launcher.png"
+              cp public/pwa-192x192.png "android/app/src/main/res/mipmap-$dir/ic_launcher_round.png"
+            done
+            for dir in xxhdpi xxxhdpi; do
+              mkdir -p "android/app/src/main/res/mipmap-$dir"
+              cp public/pwa-512x512.png "android/app/src/main/res/mipmap-$dir/ic_launcher.png"
+              cp public/pwa-512x512.png "android/app/src/main/res/mipmap-$dir/ic_launcher_round.png"
+            done
+          fi
+          npx cap sync android
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../Theft-at-Solaris.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Theft-at-Solaris-APK
+          path: Theft-at-Solaris.apk
+          retention-days: 30
+
+      - name: Publish Direct APK Download (GitHub Release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Theft at Solaris v1.0.${{ github.run_number }}
+          files: Theft-at-Solaris.apk
+          make_latest: true
